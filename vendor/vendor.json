@@ -1,6 +1,43 @@
 {
 	"comment": "",
 	"ignore": "test",
-	"package": [],
+	"package": [
+		{
+			"checksumSHA1": "2avCvSn0XonfApKKuTMyiQmk7s0=",
+			"path": "github.com/Sirupsen/logrus",
+			"revision": "3ec0642a7fb6488f65b06f9040adc67e3990296a",
+			"revisionTime": "2016-08-29T20:23:21Z"
+		},
+		{
+			"checksumSHA1": "ljZrmD7pmMXAkGNfp6IEzj31fY8=",
+			"path": "github.com/joho/godotenv",
+			"revision": "4ed13390c0acd2ff4e371e64d8b97c8954138243",
+			"revisionTime": "2015-09-07T01:02:28Z"
+		},
+		{
+			"checksumSHA1": "UE4lhbPYYWEhqHXQk24OA73m5+8=",
+			"path": "github.com/joho/godotenv/autoload",
+			"revision": "4ed13390c0acd2ff4e371e64d8b97c8954138243",
+			"revisionTime": "2015-09-07T01:02:28Z"
+		},
+		{
+			"checksumSHA1": "hBgLmZ/4mCxmnH88mqFKBkpJFUY=",
+			"path": "github.com/mgutz/ansi",
+			"revision": "c286dcecd19ff979eeb73ea444e479b903f2cfcb",
+			"revisionTime": "2015-09-14T16:22:38Z"
+		},
+		{
+			"checksumSHA1": "78ZklhBVMCDjf6qLiyQp3mTbGXo=",
+			"path": "github.com/x-cray/logrus-prefixed-formatter",
+			"revision": "78e945f7d6bfe5a81ce6121d92d8118e44303e58",
+			"revisionTime": "2016-06-25T16:39:23Z"
+		},
+		{
+			"checksumSHA1": "Xz3hUrPvOYGWTuHrEryoYAj9zwg=",
+			"path": "golang.org/x/sys/unix",
+			"revision": "9bb9f0998d48b31547d975974935ae9b48c7a03c",
+			"revisionTime": "2016-10-11T23:07:22Z"
+		}
+	],
 	"rootPath": "github.com/pedrommone/sentry-mttr-mtbf-calculator"
 }
