@@ -67,7 +67,7 @@ func NewCalculator() *Calculator {
 	calc := new(Calculator)
 	calc.Log = log.NewLogrus()
 
-	return calc;
+	return calc
 }
 
 func (c *Calculator) Start() {
@@ -81,12 +81,12 @@ func (c *Calculator) Start() {
 }
 
 func (c *Calculator) requestProjects(cursor string) (resp *http.Response, err error) {
-	client := &http.Client {}
+	client := &http.Client{}
 	uri := fmt.Sprintf("%s0/projects/?query=&cursor=%s", sentryURL, cursor)
 
 	c.Log.Info(fmt.Sprintf("GET %s", uri))
 
-	req, _ := http.NewRequest("GET", uri, nil);
+	req, _ := http.NewRequest("GET", uri, nil)
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", sentryToken))
 
 	resp, err = client.Do(req)
@@ -123,12 +123,12 @@ func (c *Calculator) getProjects(cursor string) (projects []Project) {
 }
 
 func (c *Calculator) requestIssues(project Project, cursor string) (resp *http.Response, err error) {
-	client := &http.Client {}
+	client := &http.Client{}
 	uri := fmt.Sprintf("%s0/projects/%s/%s/issues/?query=&cursor=%s", sentryURL, project.Organization.Slug, project.Slug, cursor)
 
 	c.Log.Info(fmt.Sprintf("GET %s", uri))
 
-	req, _ := http.NewRequest("GET", uri, nil);
+	req, _ := http.NewRequest("GET", uri, nil)
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", sentryToken))
 
 	resp, err = client.Do(req)
@@ -142,7 +142,7 @@ func (c *Calculator) requestIssues(project Project, cursor string) (resp *http.R
 
 func (c *Calculator) getIssues(project Project, cursor string) (issues []Issue) {
 	resp, _ := c.requestIssues(project, cursor)
-	currentIssues := []Issue {}
+	currentIssues := []Issue{}
 
 	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -186,12 +186,12 @@ func (c *Calculator) getIssue(id string) (issue Issue) {
 }
 
 func (c *Calculator) requestIssue(id string) (resp *http.Response, err error) {
-	client := &http.Client {}
+	client := &http.Client{}
 	uri := fmt.Sprintf("%s0/issues/%s/", sentryURL, id)
 
 	c.Log.Info(fmt.Sprintf("GET %s", uri))
 
-	req, _ := http.NewRequest("GET", uri, nil);
+	req, _ := http.NewRequest("GET", uri, nil)
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", sentryToken))
 
 	resp, err = client.Do(req)
