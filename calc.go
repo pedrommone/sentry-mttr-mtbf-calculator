@@ -98,8 +98,6 @@ func NewCalculator() *Calculator {
 
 func (c *Calculator) Start() {
 	projects = append(projects, c.getProjects("0:0:0")...)
-	// Hack for keep things fast.
-	// projects = []Project{Project{Name: "arya", Slug: "arya", Organization: Organization{Slug: "ezdelivery"}}}
 
 	for _, project := range projects {
 		issues = append(issues, c.getIssues(project, "0:0:0")...)
@@ -125,12 +123,56 @@ func (c *Calculator) Start() {
 	c.Log.Info(fmt.Sprintf("MTBF: %.0f seconds", mtbf))
 
 	c.saveActivitiesIntoXLSX(activities)
+	c.saveEventsIntoXLSX(eventsMTBF)
 }
 
 func (c *Calculator) sortEventsBasedOnTime() {
 	slice.Sort(events[:], func(i, j int) bool {
 		return events[i].DateCreated < events[j].DateCreated
 	})
+}
+
+func (c *Calculator) saveEventsIntoXLSX(events []ComputedEvent) {
+	var file *xlsx.File
+	var sheet *xlsx.Sheet
+	var row *xlsx.Row
+	var cell *xlsx.Cell
+	var err error
+
+	totalEvents := len(events)
+	outputFile := fmt.Sprintf("mtbf_%v", sheetName)
+
+	c.Log.Info(fmt.Sprintf("Registered %v events", totalEvents))
+	c.Log.Info(fmt.Sprintf("Output file '%v'", outputFile))
+
+	file = xlsx.NewFile()
+	sheet, err = file.AddSheet("MTBF")
+	if err != nil {
+		panic(err.Error())
+	}
+
+	row = sheet.AddRow()
+	cell = row.AddCell()
+	cell.Value = "Event Id"
+	cell = row.AddCell()
+	cell.Value = "Created At"
+	cell = row.AddCell()
+	cell.Value = "Duration In Seconds"
+
+	for _, event := range events {
+		row = sheet.AddRow()
+		cell = row.AddCell()
+		cell.Value = event.Event.Id
+		cell = row.AddCell()
+		cell.Value = event.Event.DateCreated
+		cell = row.AddCell()
+		cell.Value = strconv.FormatFloat(event.Duration, 'f', 6, 64)
+	}
+
+	err = file.Save(outputFile)
+	if err != nil {
+		panic(err.Error())
+	}
 }
 
 func (c *Calculator) saveActivitiesIntoXLSX(activities []ComputedActivity) {
@@ -141,8 +183,10 @@ func (c *Calculator) saveActivitiesIntoXLSX(activities []ComputedActivity) {
 	var err error
 
 	totalActivities := len(activities)
+	outputFile := fmt.Sprintf("mttr_%v", sheetName)
+
 	c.Log.Info(fmt.Sprintf("Registered %v activities", totalActivities))
-	c.Log.Info(fmt.Sprintf("Output file '%v'", sheetName))
+	c.Log.Info(fmt.Sprintf("Output file '%v'", outputFile))
 
 	file = xlsx.NewFile()
 	sheet, err = file.AddSheet("MTTR")
@@ -172,7 +216,7 @@ func (c *Calculator) saveActivitiesIntoXLSX(activities []ComputedActivity) {
 		cell.Value = strconv.FormatFloat(activity.Duration, 'f', 6, 64)
 	}
 
-	err = file.Save(sheetName)
+	err = file.Save(outputFile)
 	if err != nil {
 		panic(err.Error())
 	}
