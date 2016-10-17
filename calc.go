@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/kr/pretty"
 	"github.com/pedrommone/sentry-mttr-mtbf-calculator/log"
@@ -44,7 +45,10 @@ type Activity struct {
  	Type		string `json:"type,omitempty"`
 }
 
-const sentryURL = "https://sentry.io/api/"
+const (
+	sentryURL = "https://sentry.io/api/"
+	timeFormat = "2006-01-02T15:04:05Z07:00"
+)
 
 var (
 	sentryToken	string
@@ -72,19 +76,90 @@ func NewCalculator() *Calculator {
 
 func (c *Calculator) Start() {
 	projects = append(projects, c.getProjects("0:0:0")...)
+	// Hack for keep things fast.
+	// projects = []Project{Project{Name: "arya", Slug: "arya", Organization: Organization{Slug: "ezdelivery"}}}
 
 	for _, project := range projects {
 		issues = append(issues, c.getIssues(project, "0:0:0")...)
 	}
 
-	fmt.Print(fmt.Sprintf("%# v", pretty.Formatter(issues)))
+	c.Log.Debug("====================")
+	c.Log.Debug("Dataset")
+	c.Log.Debug(fmt.Sprintf("%# v", pretty.Formatter(issues)))
+	c.Log.Debug("====================")
+
+	mttr := c.calcMTTR(issues)
+
+	c.Log.Info(fmt.Sprintf("MTTR: %.2f minutes", mttr))
+}
+
+func (c *Calculator) calcMTTR(Issues []Issue) (mttr float64) {
+	var totalIterations float64
+	var totalTime float64
+
+	totalIssues := len(Issues)
+
+	c.Log.Info(fmt.Sprintf("Found %d issues", totalIssues))
+
+	for _, issue := range Issues {
+		c.Log.Info(fmt.Sprintf("Looking at issue #%v", issue.Id))
+
+		if issue.Status == "unresolved" {
+			c.Log.Info(fmt.Sprintf("Issue #%v dropped, unresolved", issue.Id))
+		} else {
+			auxTotalIterations, auxTotalTime := c.calcErrorTimeInSeconds(issue.Activity)
+
+			totalIterations += auxTotalIterations
+			totalTime += auxTotalTime
+		}
+	}
+
+	mttr = totalTime / totalIterations
+
+	return
+}
+
+func (c *Calculator) calcErrorTimeInSeconds(activities []Activity) (totalIterations float64, totalTime float64) {
+	c.Log.Info(fmt.Sprintf("Looking at %v activities", len(activities)))
+
+	// We need to make it as reverse because of Sentry data
+	for i := len(activities)-1; i >= 0; i-- {
+		c.Log.Info(fmt.Sprintf("Activity #%s is '%s'", activities[i].Id, activities[i].Type))
+
+		if activities[i].Type == "first_seen" {
+			startTime, err := time.Parse(timeFormat, activities[i].DateCreated)
+			if err != nil {
+				panic(err)
+			}
+
+			i--
+
+			if activities[i].Type == "set_resolved" {
+				c.Log.Info(fmt.Sprintf("Activity #%s resolved in sequence", activities[i].Id))
+
+				endTime, err := time.Parse(timeFormat, activities[i].DateCreated)
+				if err != nil {
+					panic(err)
+				}
+
+				duration := endTime.Sub(startTime).Minutes()
+
+				totalIterations++
+				totalTime += duration
+
+				c.Log.Info(fmt.Sprintf("Took %.2f minutes to resolve", duration))
+			}
+		}
+	}
+
+	return totalIterations, totalTime
 }
 
 func (c *Calculator) requestProjects(cursor string) (resp *http.Response, err error) {
 	client := &http.Client{}
 	uri := fmt.Sprintf("%s0/projects/?query=&cursor=%s", sentryURL, cursor)
 
-	c.Log.Info(fmt.Sprintf("GET %s", uri))
+	c.Log.Debug(fmt.Sprintf("GET %s", uri))
 
 	req, _ := http.NewRequest("GET", uri, nil)
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", sentryToken))
@@ -126,7 +201,7 @@ func (c *Calculator) requestIssues(project Project, cursor string) (resp *http.R
 	client := &http.Client{}
 	uri := fmt.Sprintf("%s0/projects/%s/%s/issues/?query=&cursor=%s", sentryURL, project.Organization.Slug, project.Slug, cursor)
 
-	c.Log.Info(fmt.Sprintf("GET %s", uri))
+	c.Log.Debug(fmt.Sprintf("GET %s", uri))
 
 	req, _ := http.NewRequest("GET", uri, nil)
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", sentryToken))
@@ -189,7 +264,7 @@ func (c *Calculator) requestIssue(id string) (resp *http.Response, err error) {
 	client := &http.Client{}
 	uri := fmt.Sprintf("%s0/issues/%s/", sentryURL, id)
 
-	c.Log.Info(fmt.Sprintf("GET %s", uri))
+	c.Log.Debug(fmt.Sprintf("GET %s", uri))
 
 	req, _ := http.NewRequest("GET", uri, nil)
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", sentryToken))
