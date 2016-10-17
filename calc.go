@@ -84,9 +84,7 @@ func NewCalculator() *Calculator {
 }
 
 func (c *Calculator) Start() {
-	// projects = append(projects, c.getProjects("0:0:0")...)
-	// Hack for keep things fast.
-	projects = []Project{Project{Name: "arya", Slug: "arya", Organization: Organization{Slug: "ezdelivery"}}}
+	projects = append(projects, c.getProjects("0:0:0")...)
 
 	for _, project := range projects {
 		issues = append(issues, c.getIssues(project, "0:0:0")...)
