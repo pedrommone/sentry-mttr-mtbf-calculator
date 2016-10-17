@@ -145,4 +145,4 @@ $RECYCLE.BIN/
 # Custom
 vendor/*/
 .env
-result.xlxs
+result.xlsx
