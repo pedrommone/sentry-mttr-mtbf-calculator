@@ -119,10 +119,10 @@ func (c *Calculator) Start() {
 	c.Log.Debug("====================")
 
 	mttr := c.calcMTTR(issues)
-	c.Log.Info(fmt.Sprintf("MTTR: %.2f minutes", mttr))
+	c.Log.Info(fmt.Sprintf("MTTR: %.0f seconds", mttr))
 
 	mtbf := c.calcMTBF(events)
-	c.Log.Info(fmt.Sprintf("MTBF: %.2f minutes", mtbf))
+	c.Log.Info(fmt.Sprintf("MTBF: %.0f seconds", mtbf))
 
 	c.saveActivitiesIntoXLSX(activities)
 }
@@ -158,7 +158,7 @@ func (c *Calculator) saveActivitiesIntoXLSX(activities []ComputedActivity) {
 	cell = row.AddCell()
 	cell.Value = "Project Name"
 	cell = row.AddCell()
-	cell.Value = "Time to Resolve In Minutes"
+	cell.Value = "Time to Resolve In Seconds"
 
 	for _, activity := range activities {
 		row = sheet.AddRow()
@@ -193,12 +193,12 @@ func (c *Calculator) calcMTBF(events []Event) (mtbf float64) {
 				panic(err)
 			}
 
-			duration := currentEventDate.Sub(lastEventDate).Minutes()
+			duration := currentEventDate.Sub(lastEventDate).Seconds()
 			eventsMTBF = append(eventsMTBF, ComputedEvent{Event: event, Duration: duration})
 
-			c.Log.Info(fmt.Sprintf("Event #%v took %.2f minutes to appear", event.Id, duration))
+			c.Log.Debug(fmt.Sprintf("Event #%v took %.0f seconds to appear", event.Id, duration))
 		} else {
-			c.Log.Info(fmt.Sprintf("Event #%v is new, not computed", event.Id))
+			c.Log.Debug(fmt.Sprintf("Event #%v is new, not computed", event.Id))
 		}
 
 		lastTime = event.DateCreated
@@ -228,13 +228,13 @@ func (c *Calculator) calcMTTR(issues []Issue) (mttr float64) {
 
 	totalIssues := len(issues)
 
-	c.Log.Info(fmt.Sprintf("Found %d issues", totalIssues))
+	c.Log.Debug(fmt.Sprintf("Found %d issues", totalIssues))
 
 	for _, issue := range issues {
-		c.Log.Info(fmt.Sprintf("Looking at issue #%v", issue.Id))
+		c.Log.Debug(fmt.Sprintf("Looking at issue #%v", issue.Id))
 
 		if issue.Status == "unresolved" {
-			c.Log.Info(fmt.Sprintf("Issue #%v dropped, unresolved", issue.Id))
+			c.Log.Debug(fmt.Sprintf("Issue #%v dropped, unresolved", issue.Id))
 		} else {
 			auxTotalIterations, auxTotalTime := c.calcTimeToRepair(issue.Activity)
 
@@ -251,11 +251,11 @@ func (c *Calculator) calcMTTR(issues []Issue) (mttr float64) {
 }
 
 func (c *Calculator) calcTimeToRepair(activities []Activity) (totalIterations float64, totalTime float64) {
-	c.Log.Info(fmt.Sprintf("Looking at %v activities", len(activities)))
+	c.Log.Debug(fmt.Sprintf("Looking at %v activities", len(activities)))
 
 	// We need to make it as reverse because of Sentry data
 	for i := len(activities)-1; i >= 0; i-- {
-		c.Log.Info(fmt.Sprintf("Activity #%s is '%s'", activities[i].Id, activities[i].Type))
+		c.Log.Debug(fmt.Sprintf("Activity #%s is '%s'", activities[i].Id, activities[i].Type))
 
 		if activities[i].Type == "first_seen" {
 			startTime, err := time.Parse(timeFormat, activities[i].DateCreated)
@@ -266,19 +266,19 @@ func (c *Calculator) calcTimeToRepair(activities []Activity) (totalIterations fl
 			i--
 
 			if activities[i].Type == "set_resolved" {
-				c.Log.Info(fmt.Sprintf("Activity #%s resolved in sequence", activities[i].Id))
+				c.Log.Debug(fmt.Sprintf("Activity #%s resolved in sequence", activities[i].Id))
 
 				endTime, err := time.Parse(timeFormat, activities[i].DateCreated)
 				if err != nil {
 					panic(err)
 				}
 
-				duration := endTime.Sub(startTime).Minutes()
+				duration := endTime.Sub(startTime).Seconds()
 
 				totalIterations++
 				totalTime += duration
 
-				c.Log.Info(fmt.Sprintf("Took %.2f minutes to resolve", duration))
+				c.Log.Debug(fmt.Sprintf("Took %.0f seconds to resolve", duration))
 			}
 		}
 	}
