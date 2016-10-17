@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/bradfitz/slice"
@@ -166,7 +165,7 @@ func (c *Calculator) saveEventsIntoXLSX(events []ComputedEvent) {
 		cell = row.AddCell()
 		cell.Value = event.Event.DateCreated
 		cell = row.AddCell()
-		cell.Value = strconv.FormatFloat(event.Duration, 'f', 6, 64)
+		cell.Value = fmt.Sprintf("%.0f", event.Duration)
 	}
 
 	err = file.Save(outputFile)
@@ -213,7 +212,7 @@ func (c *Calculator) saveActivitiesIntoXLSX(activities []ComputedActivity) {
 		cell = row.AddCell()
 		cell.Value = activity.Issue.Project.Name
 		cell = row.AddCell()
-		cell.Value = strconv.FormatFloat(activity.Duration, 'f', 6, 64)
+		cell.Value = fmt.Sprintf("%.0f", activity.Duration)
 	}
 
 	err = file.Save(outputFile)
@@ -309,7 +308,7 @@ func (c *Calculator) calcTimeToRepair(activities []Activity) (totalIterations fl
 
 			i--
 
-			if activities[i].Type == "set_resolved" {
+			if activities[i].Type == "set_resolved" || activities[i].Type == "set_regression" {
 				c.Log.Debug(fmt.Sprintf("Activity #%s resolved in sequence", activities[i].Id))
 
 				endTime, err := time.Parse(timeFormat, activities[i].DateCreated)
@@ -323,6 +322,10 @@ func (c *Calculator) calcTimeToRepair(activities []Activity) (totalIterations fl
 				totalTime += duration
 
 				c.Log.Debug(fmt.Sprintf("Took %.0f seconds to resolve", duration))
+
+				if (activities[i].Type == "set_regression") {
+					i++
+				}
 			}
 		}
 	}
