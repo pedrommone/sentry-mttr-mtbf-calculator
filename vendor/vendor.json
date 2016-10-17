@@ -9,6 +9,12 @@
 			"revisionTime": "2016-08-29T20:23:21Z"
 		},
 		{
+			"checksumSHA1": "NHQfiS8m+veKimFRVXgomeNq5vo=",
+			"path": "github.com/bradfitz/slice",
+			"revision": "d9036e2120b5ddfa53f3ebccd618c4af275f47da",
+			"revisionTime": "2016-08-23T17:19:49Z"
+		},
+		{
 			"checksumSHA1": "NsSPnuzGKDcCme4CVIiWjQmpXWk=",
 			"path": "github.com/dghubble/sling",
 			"revision": "c961a4334054e64299d16f8a31bd686ee2565ae4",
@@ -71,6 +77,12 @@
 			"path": "github.com/x-cray/logrus-prefixed-formatter",
 			"revision": "78e945f7d6bfe5a81ce6121d92d8118e44303e58",
 			"revisionTime": "2016-06-25T16:39:23Z"
+		},
+		{
+			"checksumSHA1": "FygqfsRzjqsiYaLC+XSXrh1MUr8=",
+			"path": "go4.org/reflectutil",
+			"revision": "399a9d7bfe85437346a5ec4ef0450fc2f1084e61",
+			"revisionTime": "2016-09-23T17:06:11Z"
 		},
 		{
 			"checksumSHA1": "Xz3hUrPvOYGWTuHrEryoYAj9zwg=",

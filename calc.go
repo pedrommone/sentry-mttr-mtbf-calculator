@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/bradfitz/slice"
 	"github.com/kr/pretty"
 	"github.com/pedrommone/sentry-mttr-mtbf-calculator/log"
 	"github.com/Sirupsen/logrus"
@@ -29,22 +30,32 @@ type Organization struct {
 }
 
 type Project struct {
-	Name		string `json:"name,omitempty"`
-	Slug		string `json:"slug,omitempty"`
+	Name		string `json:"name"`
+	Slug		string `json:"slug"`
 	Organization	Organization
 }
 
 type Issue struct {
-	Id		string `json:"id,omitempty"`
-	Status		string `json:"status,omitempty"`
+	Id		string `json:"id"`
+	Status		string `json:"status"`
 	Project		Project
 	Activity		[]Activity
 }
 
 type Activity struct {
-	Id		string `json:"id,omitempty"`
-	DateCreated	string `json:"dateCreated,omitempty"`
- 	Type		string `json:"type,omitempty"`
+	Id		string `json:"id"`
+	DateCreated	string `json:"dateCreated"`
+ 	Type		string `json:"type"`
+}
+
+type Event struct {
+	Id		string `json:"eventID"`
+	DateCreated	string `json:"dateCreated"`
+}
+
+type ComputedEvent struct {
+	Event		Event
+	Duration	float64
 }
 
 type ComputedActivity struct {
@@ -59,10 +70,12 @@ const (
 )
 
 var (
-	sentryToken	string
-	projects	[]Project
-	issues		[]Issue
 	activities	[]ComputedActivity
+	events		[]Event
+	eventsMTBF	[]ComputedEvent
+	issues		[]Issue
+	projects	[]Project
+	sentryToken	string
 )
 
 func main() {
@@ -85,20 +98,39 @@ func NewCalculator() *Calculator {
 
 func (c *Calculator) Start() {
 	projects = append(projects, c.getProjects("0:0:0")...)
+	// Hack for keep things fast.
+	// projects = []Project{Project{Name: "arya", Slug: "arya", Organization: Organization{Slug: "ezdelivery"}}}
 
 	for _, project := range projects {
 		issues = append(issues, c.getIssues(project, "0:0:0")...)
 	}
 
+	for _, issue := range issues {
+		events = append(events, c.getEvents(issue, "0:0:0")...)
+	}
+
+	c.sortEventsBasedOnTime()
+
 	c.Log.Debug("====================")
 	c.Log.Debug("Dataset")
 	c.Log.Debug(fmt.Sprintf("%# v", pretty.Formatter(issues)))
+	c.Log.Debug("====================")
+	c.Log.Debug(fmt.Sprintf("%# v", pretty.Formatter(events)))
 	c.Log.Debug("====================")
 
 	mttr := c.calcMTTR(issues)
 	c.Log.Info(fmt.Sprintf("MTTR: %.2f minutes", mttr))
 
+	mtbf := c.calcMTBF(events)
+	c.Log.Info(fmt.Sprintf("MTBF: %.2f minutes", mtbf))
+
 	c.saveActivitiesIntoXLSX(activities)
+}
+
+func (c *Calculator) sortEventsBasedOnTime() {
+	slice.Sort(events[:], func(i, j int) bool {
+		return events[i].DateCreated < events[j].DateCreated
+	})
 }
 
 func (c *Calculator) saveActivitiesIntoXLSX(activities []ComputedActivity) {
@@ -113,7 +145,7 @@ func (c *Calculator) saveActivitiesIntoXLSX(activities []ComputedActivity) {
 	c.Log.Info(fmt.Sprintf("Output file '%v'", sheetName))
 
 	file = xlsx.NewFile()
-	sheet, err = file.AddSheet("Results")
+	sheet, err = file.AddSheet("MTTR")
 	if err != nil {
 		panic(err.Error())
 	}
@@ -146,15 +178,59 @@ func (c *Calculator) saveActivitiesIntoXLSX(activities []ComputedActivity) {
 	}
 }
 
-func (c *Calculator) calcMTTR(Issues []Issue) (mttr float64) {
+func (c *Calculator) calcMTBF(events []Event) (mtbf float64) {
+	lastTime := ""
+
+	for _, event := range events {
+		if lastTime != "" {
+			lastEventDate, err := time.Parse(timeFormat, lastTime)
+			if err != nil {
+				panic(err)
+			}
+
+			currentEventDate, err := time.Parse(timeFormat, event.DateCreated)
+			if err != nil {
+				panic(err)
+			}
+
+			duration := currentEventDate.Sub(lastEventDate).Minutes()
+			eventsMTBF = append(eventsMTBF, ComputedEvent{Event: event, Duration: duration})
+
+			c.Log.Info(fmt.Sprintf("Event #%v took %.2f minutes to appear", event.Id, duration))
+		} else {
+			c.Log.Info(fmt.Sprintf("Event #%v is new, not computed", event.Id))
+		}
+
+		lastTime = event.DateCreated
+	}
+
+	totalIterations, totalTime := c.calcMediumTimeForMTTR()
+	mtbf = totalTime / totalIterations
+
+	return
+}
+
+func (c *Calculator) calcMediumTimeForMTTR() (totalIterations float64, totalTime float64) {
+	totalIterations = 0
+	totalTime = 0
+
+	for _, event := range eventsMTBF {
+		totalIterations++
+		totalTime += event.Duration
+	}
+
+	return
+}
+
+func (c *Calculator) calcMTTR(issues []Issue) (mttr float64) {
 	var totalIterations float64
 	var totalTime float64
 
-	totalIssues := len(Issues)
+	totalIssues := len(issues)
 
 	c.Log.Info(fmt.Sprintf("Found %d issues", totalIssues))
 
-	for _, issue := range Issues {
+	for _, issue := range issues {
 		c.Log.Info(fmt.Sprintf("Looking at issue #%v", issue.Id))
 
 		if issue.Status == "unresolved" {
@@ -208,6 +284,48 @@ func (c *Calculator) calcTimeToRepair(activities []Activity) (totalIterations fl
 	}
 
 	return totalIterations, totalTime
+}
+
+func (c *Calculator) requestEvents(issue Issue, cursor string) (resp *http.Response, err error) {
+	client := &http.Client{}
+	uri := fmt.Sprintf("%s0/issues/%s/events/?query=&cursor=%s", sentryURL, issue.Id, cursor)
+
+	c.Log.Debug(fmt.Sprintf("GET %s", uri))
+
+	req, _ := http.NewRequest("GET", uri, nil)
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", sentryToken))
+
+	resp, err = client.Do(req)
+
+	if err != nil {
+		panic("Error while fetch data.")
+	}
+
+	return
+}
+
+func (c *Calculator) getEvents(issue Issue, cursor string) (events []Event) {
+	resp, _ := c.requestEvents(issue, cursor)
+
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		panic(err)
+	}
+
+	err = json.Unmarshal(b, &events)
+	if err != nil {
+		panic(err)
+	}
+
+	link := resp.Header.Get("Link")
+	links := linkheader.Parse(link)
+	nextPage := links[1].Params
+
+	if nextPage["results"] == "true" {
+		c.getEvents(issue, nextPage["cursor"])
+	}
+
+	return
 }
 
 func (c *Calculator) requestProjects(cursor string) (resp *http.Response, err error) {
