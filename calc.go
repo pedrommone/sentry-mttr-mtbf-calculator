@@ -6,11 +6,13 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/kr/pretty"
 	"github.com/pedrommone/sentry-mttr-mtbf-calculator/log"
 	"github.com/Sirupsen/logrus"
+	"github.com/tealeg/xlsx"
 	"github.com/tomnomnom/linkheader"
 
 	_ "github.com/joho/godotenv/autoload"
@@ -45,15 +47,22 @@ type Activity struct {
  	Type		string `json:"type,omitempty"`
 }
 
+type ComputedActivity struct {
+	Issue		Issue
+	Duration	float64
+}
+
 const (
-	sentryURL = "https://sentry.io/api/"
-	timeFormat = "2006-01-02T15:04:05Z07:00"
+	sentryURL	= "https://sentry.io/api/"
+	timeFormat	= "2006-01-02T15:04:05Z07:00"
+	sheetName	= "result.xlsx"
 )
 
 var (
 	sentryToken	string
 	projects	[]Project
 	issues		[]Issue
+	activities	[]ComputedActivity
 )
 
 func main() {
@@ -75,9 +84,9 @@ func NewCalculator() *Calculator {
 }
 
 func (c *Calculator) Start() {
-	projects = append(projects, c.getProjects("0:0:0")...)
+	// projects = append(projects, c.getProjects("0:0:0")...)
 	// Hack for keep things fast.
-	// projects = []Project{Project{Name: "arya", Slug: "arya", Organization: Organization{Slug: "ezdelivery"}}}
+	projects = []Project{Project{Name: "arya", Slug: "arya", Organization: Organization{Slug: "ezdelivery"}}}
 
 	for _, project := range projects {
 		issues = append(issues, c.getIssues(project, "0:0:0")...)
@@ -89,8 +98,54 @@ func (c *Calculator) Start() {
 	c.Log.Debug("====================")
 
 	mttr := c.calcMTTR(issues)
-
 	c.Log.Info(fmt.Sprintf("MTTR: %.2f minutes", mttr))
+
+	c.saveActivitiesIntoXLSX(activities)
+}
+
+func (c *Calculator) saveActivitiesIntoXLSX(activities []ComputedActivity) {
+	var file *xlsx.File
+	var sheet *xlsx.Sheet
+	var row *xlsx.Row
+	var cell *xlsx.Cell
+	var err error
+
+	totalActivities := len(activities)
+	c.Log.Info(fmt.Sprintf("Registered %v activities", totalActivities))
+	c.Log.Info(fmt.Sprintf("Output file '%v'", sheetName))
+
+	file = xlsx.NewFile()
+	sheet, err = file.AddSheet("Results")
+	if err != nil {
+		panic(err.Error())
+	}
+
+	row = sheet.AddRow()
+	cell = row.AddCell()
+	cell.Value = "Issue Id"
+	cell = row.AddCell()
+	cell.Value = "Issue Status"
+	cell = row.AddCell()
+	cell.Value = "Project Name"
+	cell = row.AddCell()
+	cell.Value = "Time to Resolve In Minutes"
+
+	for _, activity := range activities {
+		row = sheet.AddRow()
+		cell = row.AddCell()
+		cell.Value = activity.Issue.Id
+		cell = row.AddCell()
+		cell.Value = activity.Issue.Status
+		cell = row.AddCell()
+		cell.Value = activity.Issue.Project.Name
+		cell = row.AddCell()
+		cell.Value = strconv.FormatFloat(activity.Duration, 'f', 6, 64)
+	}
+
+	err = file.Save(sheetName)
+	if err != nil {
+		panic(err.Error())
+	}
 }
 
 func (c *Calculator) calcMTTR(Issues []Issue) (mttr float64) {
@@ -107,7 +162,9 @@ func (c *Calculator) calcMTTR(Issues []Issue) (mttr float64) {
 		if issue.Status == "unresolved" {
 			c.Log.Info(fmt.Sprintf("Issue #%v dropped, unresolved", issue.Id))
 		} else {
-			auxTotalIterations, auxTotalTime := c.calcErrorTimeInSeconds(issue.Activity)
+			auxTotalIterations, auxTotalTime := c.calcTimeToRepair(issue.Activity)
+
+			activities = append(activities, ComputedActivity{Issue: issue, Duration: auxTotalTime})
 
 			totalIterations += auxTotalIterations
 			totalTime += auxTotalTime
@@ -119,7 +176,7 @@ func (c *Calculator) calcMTTR(Issues []Issue) (mttr float64) {
 	return
 }
 
-func (c *Calculator) calcErrorTimeInSeconds(activities []Activity) (totalIterations float64, totalTime float64) {
+func (c *Calculator) calcTimeToRepair(activities []Activity) (totalIterations float64, totalTime float64) {
 	c.Log.Info(fmt.Sprintf("Looking at %v activities", len(activities)))
 
 	// We need to make it as reverse because of Sentry data

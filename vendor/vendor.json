@@ -55,6 +55,12 @@
 			"revisionTime": "2015-09-14T16:22:38Z"
 		},
 		{
+			"checksumSHA1": "88fT9V7TkBYr076NCSaYdFUKbHI=",
+			"path": "github.com/tealeg/xlsx",
+			"revision": "887b805086ab2016cdcdbb7a3cab8c0b867e5a64",
+			"revisionTime": "2016-09-13T09:58:47Z"
+		},
+		{
 			"checksumSHA1": "y1hkty5dgBN9elK4gP1TtVjT4e8=",
 			"path": "github.com/tomnomnom/linkheader",
 			"revision": "236df730ed7334edb33cb10ba79407491fb4e147",
